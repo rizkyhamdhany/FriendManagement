@@ -51,6 +51,82 @@ class FriendController extends Controller
         $relations->second_user_id = $user2->id;
         $relations->status = FR::Friend;
         $relations->save();
+        $user1->friend_count = $user1->friend_count + 1;
+        $user1->save();
+        $user2->friend_count = $user2->friend_count + 1;
+        $user2->save();
         return Rest::insertSuccess();
+    }
+
+    public function friendList(Request $request){
+        $email = $request->input('email');
+        if (!isset($email)){
+            return Rest::badRequest();
+        }
+        $user = User::where('email', $email)->first();
+        if (!isset($user)){
+            return Rest::dataNotFound('User '.$user.' not found !');
+        }
+        $relations = Relation::where(function ($query) use ($user) {$query
+                        ->where('first_user_id', $user->id)
+                        ->orWhere('second_user_id', $user->id);
+                })->where('status', FR::Friend)->get();
+        $emails = [];
+        foreach ($relations as $relation){
+            if ($relation->first_user_id == $user->id){
+                $friend = User::find($relation->second_user_id);
+                array_push($emails, $friend->email);
+            } else {
+                $friend = User::find($relation->first_user_id);
+                array_push($emails, $friend->email);
+            }
+        }
+        return Rest::successWithDataWithCount('friends', $emails, count($emails));
+    }
+
+    public function commonFriend(Request $request){
+        $friends = $request->input("friends");
+        if(!isset($friends) || count($friends) != 2){
+            return Rest::badRequest();
+        }
+        $user1 = User::where('email', $friends[0])->first();
+        if (!isset($user1)){
+            return Rest::dataNotFound('User '.$friends[0].' not found !');
+        }
+        $user2 = User::where('email', $friends[1])->first();
+        if (!isset($user2)){
+            return Rest::dataNotFound('User '.$friends[1].' not found !');
+        }
+        $relations = Relation::where(function ($query) use ($user1) {$query
+            ->where('first_user_id', $user1->id)
+            ->orWhere('second_user_id', $user1->id);
+        })->where('status', FR::Friend)->get();
+        $emails1 = [];
+        foreach ($relations as $relation){
+            if ($relation->first_user_id == $user1->id){
+                $friend = User::find($relation->second_user_id);
+                array_push($emails1, $friend->email);
+            } else {
+                $friend = User::find($relation->first_user_id);
+                array_push($emails1, $friend->email);
+            }
+        }
+
+        $relations = Relation::where(function ($query) use ($user2) {$query
+            ->where('first_user_id', $user2->id)
+            ->orWhere('second_user_id', $user2->id);
+        })->where('status', FR::Friend)->get();
+        $emails2 = [];
+        foreach ($relations as $relation){
+            if ($relation->first_user_id == $user2->id){
+                $friend = User::find($relation->second_user_id);
+                array_push($emails2, $friend->email);
+            } else {
+                $friend = User::find($relation->first_user_id);
+                array_push($emails2, $friend->email);
+            }
+        }
+        $result = array_values(array_intersect($emails1, $emails2));
+        return Rest::successWithDataWithCount('friends', $result, count($result));
     }
 }

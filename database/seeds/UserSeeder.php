@@ -22,6 +22,7 @@ class UserSeeder extends Seeder
                 'name' => $faker->name,
                 'email' => $faker->email,
                 'password' => $faker->password,
+                'friend_count' => 0
             ]);
         }
     }

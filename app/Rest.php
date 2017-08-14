@@ -7,14 +7,23 @@ class Rest
 {
     public static function insertSuccess(){
         $returnData = array(
-            'status' => 'success',
+            'success' => true,
+        );
+        return response()->json($returnData, 200);
+    }
+
+    public static function successWithDataWithCount($field, $data, $count){
+        $returnData = array(
+            'success' => true,
+            $field => $data,
+            'count' => $count
         );
         return response()->json($returnData, 200);
     }
 
     public static function badRequest(){
         $returnData = array(
-            'status' => 'error',
+            'success' => false,
             'message' => 'Bad Request !'
         );
         return response()->json($returnData, 400);
@@ -22,7 +31,7 @@ class Rest
 
     public static function badRequestWithMsg($msg){
         $returnData = array(
-            'status' => 'error',
+            'success' => false,
             'message' => $msg
         );
         return response()->json($returnData, 400);
@@ -30,7 +39,7 @@ class Rest
 
     public static function dataNotFound($message){
         $returnData = array(
-            'status' => 'error',
+            'success' => false,
             'message' => $message
         );
         return response()->json($returnData, 404);
