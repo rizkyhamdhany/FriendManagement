@@ -22,5 +22,7 @@ Route::prefix('/v1')->group(function () {
     Route::post('/friend_connect', 'API\FriendController@friendConnect')->name('friend.connect');
     Route::post('/friend_list', 'API\FriendController@friendList')->name('friend.list');
     Route::post('/common_friend', 'API\FriendController@commonFriend')->name('friend.common');
+    Route::post('/subscribe', 'API\FriendController@subscribe')->name('subcribe');
+    Route::post('/block', 'API\FriendController@block')->name('block');
 });
 
