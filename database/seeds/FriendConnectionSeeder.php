@@ -3,7 +3,6 @@
 use Illuminate\Database\Seeder;
 use App\User;
 use App\Relation;
-use App\FR;
 
 class FriendConnectionSeeder extends Seeder
 {
@@ -18,7 +17,7 @@ class FriendConnectionSeeder extends Seeder
         foreach ($users as $user){
             $friends = User::where('id', '!=' , $user->id)->limit(15)->inRandomOrder()->get();
             foreach ($friends as $friend){
-                $rel = Relation::where('first_user_id', $friend->id)->where('second_user_id', $user->id)->where('status', FR::Friend)->first();
+                $rel = Relation::where('first_user_id', $friend->id)->where('second_user_id', $user->id)->where('is_friend', true)->first();
                 if (!isset($rel)){
                     $relations = new Relation();
                     if ($user->id > $friend->id){
@@ -28,7 +27,9 @@ class FriendConnectionSeeder extends Seeder
                         $relations->first_user_id = $user->id;
                         $relations->second_user_id = $friend->id;
                     }
-                    $relations->status = FR::Friend;
+                    $relations->is_friend = true;
+                    $relations->subscribed = false;
+                    $relations->blocked = false;
                     $relations->save();
                     $user->friend_count = $user->friend_count + 1;
                     $user->save();

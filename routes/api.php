@@ -24,5 +24,6 @@ Route::prefix('/v1')->group(function () {
     Route::post('/common_friend', 'API\FriendController@commonFriend')->name('friend.common');
     Route::post('/subscribe', 'API\FriendController@subscribe')->name('subcribe');
     Route::post('/block', 'API\FriendController@block')->name('block');
+    Route::post('/receiving_update', 'API\FriendController@receivingUpdate')->name('receiving_update');
 });
 

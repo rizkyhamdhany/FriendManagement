@@ -8,7 +8,7 @@ use App\User;
 use App\CC;
 use App\Rest;
 use App\Relation;
-use App\FR;
+use Illuminate\Support\Facades\DB;
 
 class FriendController extends Controller
 {
@@ -37,24 +37,61 @@ class FriendController extends Controller
         }
         if ($user1->id == $user2->id){
             return Rest::badRequest();
-        } elseif ($user1->id > $user2->id){
-            $user = $user1;
-            $user1 = $user2;
-            $user2 = $user;
         }
         $relations = Relation::where('first_user_id',$user1->id)->where('second_user_id',$user2->id)->first();
         if (isset($relations)){
-            return Rest::badRequestWithMsg('Already become friend !');
+            if ($relations->is_friend){
+                return Rest::badRequestWithMsg('Already become friend !');
+            }
+            $relations2 = Relation::where('first_user_id',$user2->id)->where('second_user_id',$user1->id)->first();
+            if (isset($relations2)){
+                $relations->is_friend = true;
+                $relations2->is_friend = true;
+            } else {
+                $relations2 = new Relation();
+                $relations2->first_user_id = $user2->id;
+                $relations2->second_user_id = $user1->id;
+                $relations2->is_friend = true;
+                $relations2->subscribed = false;
+                $relations2->blocked = false;
+            }
+            if ($relations->blocked || $relations2->blocked){
+                return Rest::badRequestWithMsg('You have blocked this user !');
+            }
+            $relations2->save();
+            $relations->save();
+            $user1->friend_count = $user1->friend_count + 1;
+            $user1->save();
+            $user2->friend_count = $user2->friend_count + 1;
+            $user2->save();
+        } else {
+            $relations = new Relation();
+            $relations->first_user_id = $user1->id;
+            $relations->second_user_id = $user2->id;
+            $relations->is_friend = true;
+            $relations->subscribed = false;
+            $relations->blocked = false;
+            $relations2 = Relation::where('first_user_id',$user2->id)->where('second_user_id',$user1->id)->first();
+            if (isset($relations2)){
+                $relations2->is_friend = true;
+            } else {
+                $relations2 = new Relation();
+                $relations2->first_user_id = $user2->id;
+                $relations2->second_user_id = $user1->id;
+                $relations2->is_friend = true;
+                $relations2->subscribed = false;
+                $relations2->blocked = false;
+            }
+            if ($relations->blocked || $relations2->blocked){
+                return Rest::badRequestWithMsg('This user have blocked this you !');
+            }
+            $relations->save();
+            $relations2->save();
+            $user1->friend_count = $user1->friend_count + 1;
+            $user1->save();
+            $user2->friend_count = $user2->friend_count + 1;
+            $user2->save();
         }
-        $relations = new Relation();
-        $relations->first_user_id = $user1->id;
-        $relations->second_user_id = $user2->id;
-        $relations->status = FR::Friend;
-        $relations->save();
-        $user1->friend_count = $user1->friend_count + 1;
-        $user1->save();
-        $user2->friend_count = $user2->friend_count + 1;
-        $user2->save();
         return Rest::insertSuccess();
     }
 
@@ -67,20 +104,12 @@ class FriendController extends Controller
         if (!isset($user)){
             return Rest::dataNotFound('User '.$user.' not found !');
         }
-        $relations = Relation::where(function ($query) use ($user) {$query
-                        ->where('first_user_id', $user->id)
-                        ->orWhere('second_user_id', $user->id);
-                })->where('status', FR::Friend)->get();
-        $emails = [];
-        foreach ($relations as $relation){
-            if ($relation->first_user_id == $user->id){
-                $friend = User::find($relation->second_user_id);
-                array_push($emails, $friend->email);
-            } else {
-                $friend = User::find($relation->first_user_id);
-                array_push($emails, $friend->email);
-            }
-        }
+        $emails =  User::whereIn('id', function($query) use ($user){
+                        $query->select('second_user_id')
+                            ->from(with(new Relation)->getTable())
+                            ->where('is_friend', true)
+                            ->where('first_user_id', $user->id);
+                    })->pluck('email')->toArray();
         return Rest::successWithDataWithCount('friends', $emails, count($emails));
     }
 
@@ -97,37 +126,15 @@ class FriendController extends Controller
         if (!isset($user2)){
             return Rest::dataNotFound('User '.$friends[1].' not found !');
         }
-        $relations = Relation::where(function ($query) use ($user1) {$query
-            ->where('first_user_id', $user1->id)
-            ->orWhere('second_user_id', $user1->id);
-        })->where('status', FR::Friend)->get();
-        $emails1 = [];
-        foreach ($relations as $relation){
-            if ($relation->first_user_id == $user1->id){
-                $friend = User::find($relation->second_user_id);
-                array_push($emails1, $friend->email);
-            } else {
-                $friend = User::find($relation->first_user_id);
-                array_push($emails1, $friend->email);
-            }
-        }
-
-        $relations = Relation::where(function ($query) use ($user2) {$query
-            ->where('first_user_id', $user2->id)
-            ->orWhere('second_user_id', $user2->id);
-        })->where('status', FR::Friend)->get();
-        $emails2 = [];
-        foreach ($relations as $relation){
-            if ($relation->first_user_id == $user2->id){
-                $friend = User::find($relation->second_user_id);
-                array_push($emails2, $friend->email);
-            } else {
-                $friend = User::find($relation->first_user_id);
-                array_push($emails2, $friend->email);
-            }
-        }
-        $result = array_values(array_intersect($emails1, $emails2));
-        return Rest::successWithDataWithCount('friends', $result, count($result));
+        $emails =  DB::select(
+            "select `users`.`email` 
+              from `users`
+              where `id` in (SELECT `my`.`second_user_id` 
+                            FROM `relations` AS `my` 
+                            JOIN `relations` AS their USING (`second_user_id`) 
+                            WHERE my.`first_user_id` = ".$user1->id." AND their.`first_user_id` = ".$user2->id.")"
+        );
+        return Rest::successWithDataWithCount('friends', $emails, count($emails));
     }
 
     public function subscribe(Request $request){
@@ -148,14 +155,20 @@ class FriendController extends Controller
             return Rest::badRequest();
         }
 
-        $relations = Relation::where('status', FR::Subscribe)->where('first_user_id',$user1->id)->where('second_user_id',$user2->id)->first();
+        $relations = Relation::where('first_user_id',$user1->id)->where('second_user_id',$user2->id)->first();
         if (isset($relations)){
-            return Rest::badRequestWithMsg('Already Subscribed !');
+            if ($relations->subscribed){
+                return Rest::badRequestWithMsg('Already Subscribed !');
+            }
+            $relations->subscribed = true;
+        } else {
+            $relations = new Relation();
+            $relations->first_user_id = $user1->id;
+            $relations->second_user_id = $user2->id;
+            $relations->is_friend = false;
+            $relations->subscribed = true;
+            $relations->blocked = false;
         }
-        $relations = new Relation();
-        $relations->first_user_id = $user1->id;
-        $relations->second_user_id = $user2->id;
-        $relations->status = FR::Subscribe;
         $relations->save();
         return Rest::insertSuccess();
     }
@@ -178,15 +191,49 @@ class FriendController extends Controller
             return Rest::badRequest();
         }
 
-        $relations = Relation::where('status', FR::FriendBlocked)->where('first_user_id',$user1->id)->where('second_user_id',$user2->id)->first();
+        $relations = Relation::where('first_user_id',$user1->id)->where('second_user_id',$user2->id)->first();
         if (isset($relations)){
-            return Rest::badRequestWithMsg('Already Blocked !');
+            if ($relations->subscribed){
+                return Rest::badRequestWithMsg('Already Subscribed !');
+            }
+            $relations->blocked = true;
+        } else {
+            $relations = new Relation();
+            $relations->first_user_id = $user1->id;
+            $relations->second_user_id = $user2->id;
+            $relations->is_friend = false;
+            $relations->subscribed = false;
+            $relations->blocked = true;
         }
-        $relations = new Relation();
-        $relations->first_user_id = $user1->id;
-        $relations->second_user_id = $user2->id;
-        $relations->status = FR::FriendBlocked;
         $relations->save();
         return Rest::insertSuccess();
+    }
+
+    public function receivingUpdate(Request $request){
+        $sender = $request->input("sender");
+        $text = $request->input("text");
+        if(!isset($sender) || !isset($text)){
+            return Rest::badRequest();
+        }
+        $user = User::where('email', $sender)->first();
+        if (!isset($user)){
+            return Rest::dataNotFound('User '.$sender.' not found !');
+        }
+        $emails =  User::whereIn('id', function($query) use ($user){
+            $query->select('first_user_id')
+                ->from(with(new Relation)->getTable())
+                ->where(function($q) {
+                    $q
+                        ->where('is_friend', true)
+                        ->orWhere('subscribed', true);
+                })
+                ->where('blocked', false)
+                ->where('second_user_id', $user->id);
+        })->pluck('email')->toArray();
+
+        preg_match_all("/[\._a-zA-Z0-9-]+@[\._a-zA-Z0-9-]+/i", $text, $matches);
+        $mentioned = User::where('email', $matches[0])->pluck('id')->toArray();
+        $emails = array_merge($emails, $mentioned);
+        return Rest::successWithDataWithCount('friends', $emails, count($emails));
     }
 }
