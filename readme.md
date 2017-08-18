@@ -12,7 +12,7 @@ Feature list on this API are:
 
 see API docs https://documenter.getpostman.com/view/1401695/friendmanagement/6n8vqsE#6465dc98-3f81-66ab-bcab-0fa71f10c30a
 
-### Introduction
+### Instalation
 
 You need server that installed Apache, PHP > 5, MySql or you can use XAMPP
 
@@ -42,11 +42,16 @@ You need server that installed Apache, PHP > 5, MySql or you can use XAMPP
     ```
     db name : friendmanagement
     ```
-5. Migrate Database
+5. Migrate Database & Populate Dummy Data
     ```
-    php artisan migrate
+    php artisan migrate --seed
     ```
-6. Run Testing
+6. See all User From Database
+    ```
+    endpoint : {url}/api/v1/user
+    {url} can be replaced by http://localhost/friendmanagement or your server address
+    ```
+7. Run Testing
     ```
     ./vendor/bin/codecept run api
     ```
